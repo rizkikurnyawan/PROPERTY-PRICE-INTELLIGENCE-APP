@@ -27,11 +27,10 @@ st.markdown("""
 
 # HEADER UTAMA
 st.title("🏢 SPEEDHOME Property Price Intelligence")
-st.caption("Aplikasi otomatis analisis data sewa properti - Smart Auto-Extract Mode")
+st.caption("Aplikasi otomatis analisis data sewa properti - Smart Location Split Mode")
 st.markdown("---")
 
-# 2. LOAD DATABASE INDUK (Contoh: kuala_lumpur.json)
-# File ini bertindak sebagai pusat data yang berisi gabungan banyak apartemen
+# 2. LOAD DATABASE INDUK
 MASTER_FILE = "kuala_lumpur.json"
 
 if os.path.exists(MASTER_FILE):
@@ -42,16 +41,21 @@ if os.path.exists(MASTER_FILE):
         raw_properties = json_data.get('pageProps', {}).get('propertyList', {}).get('content', [])
         
         if raw_properties:
-            # Bangun Dataframe Induk Terlebih Dahulu
             main_raw_df = pd.DataFrame(raw_properties)
             
             # Bersihkan dan petakan kolom mendasar
             master_df = pd.DataFrame()
             master_df['Judul Listing'] = main_raw_df['name'] if 'name' in main_raw_df else "Unit Properti"
             
-            # Mengambil ekstrak nama Kondominium/Apartemen dari judul properti
-            # Biasanya SPEEDHOME menulis nama properti di awal judul, kita jadikan referensi filter
-            master_df['Nama Apartemen'] = master_df['Judul Listing'].apply(lambda x: str(x).split(",")[0].strip())
+            # --- LOGIKA PEMISAHAN (SPLIT) NAMA APARTEMEN & DAERAH ---
+            # Contoh Judul: "Villa Tropika, Bangi" -> Apartemen: "Villa Tropika", Daerah: "Bangi"
+            def ekstrasi_lokasi(judul):
+                parts = str(judul).split(",")
+                apartemen = parts[0].strip() if len(parts) > 0 else ""
+                daerah = parts[1].strip() if len(parts) > 1 else "Kuala Lumpur"
+                return pd.Series([apartemen, daerah])
+            
+            master_df[['Nama Apartemen', 'Nama Daerah']] = master_df['Judul Listing'].apply(ekstrasi_lokasi)
             
             if 'bedroom' in main_raw_df:
                 master_df['Tipe'] = main_raw_df['bedroom'].apply(lambda x: f"{int(x)}BR" if pd.notnull(x) and x > 0 else "Studio")
@@ -64,24 +68,38 @@ if os.path.exists(MASTER_FILE):
             master_df['Furnish'] = main_raw_df['furnishType'].fillna("PARTIAL")
             master_df['Link'] = main_raw_df['ref'].apply(lambda x: f"https://speedhome.com/ads/{x}") if 'ref' in main_raw_df else "https://speedhome.com"
 
-            # --- AMBIL DAFTAR APARTEMEN SECARA OTOMATIS (AUTO-EXTRACT) ---
-            # Semua nama apartemen unik di dalam JSON akan dikumpulkan di sini secara otomatis
-            list_apartemen_unik = sorted(master_df['Nama Apartemen'].unique().tolist())
+            # --- BUAT DAFTAR SUGGESTION TERPISAH ---
+            # Ambil semua daerah unik dan apartemen unik secara terpisah
+            daerah_unik = master_df['Nama Daerah'].dropna().unique().tolist()
+            apartemen_unik = master_df['Nama Apartemen'].dropna().unique().tolist()
             
-            # 3. FITUR PENCARIAN OTOMATIS BERDASARKAN HASIL EXTRACT
-            selected_apartment = st.selectbox(
-                "🔍 Ketik nama apartemen atau pilih dari daftar database otomatis:",
-                options=list_apartemen_unik,
-                index=None,
-                placeholder="Ketik untuk mencari apartemen (Contoh: Arte, The Elements, Saffron...)"
+            # Bersihkan teks kosong jika ada, lalu urutkan sesuai abjad
+            daerah_unik = sorted([d for d in daerah_unik if d])
+            apartemen_unik = sorted([a for a in apartemen_unik if a])
+            
+            # Gabungkan ke satu list opsi pencarian: "Lihat Semua", lalu daftar Daerah, baru daftar Apartemen
+            opsi_pencarian = ["Lihat Semua (Kuala Lumpur Master Data)"] + daerah_unik + apartemen_unik
+            
+            # 3. FITUR PENCARIAN OTOMATIS (AUTO-SUGGESTION)
+            selected_option = st.selectbox(
+                "🔍 Ketik/Pilih Nama Daerah atau Nama Apartemen secara terpisah:",
+                options=opsi_pencarian,
+                index=0,  # Default menampilkan semua data agar tidak kosong di awal
+                placeholder="Ketik daerah (ex: Bangi, Cheras) atau apartemen (ex: Villa Tropika, The ERA)..."
             )
             
             st.markdown("---")
             
-            # 4. LOGIKA FILTER BERDASARKAN PILIHAN USER
-            if selected_apartment:
-                # Saring data master hanya untuk apartemen yang dipilih
-                df = master_df[master_df['Nama Apartemen'] == selected_apartment].reset_index(drop=True)
+            # 4. LOGIKA FILTER PINTAR
+            if selected_option:
+                if selected_option == "Lihat Semua (Kuala Lumpur Master Data)":
+                    df = master_df.copy()
+                elif selected_option in daerah_unik:
+                    # Jika user memilih/mengetik nama DAERAH (contoh: Bangi)
+                    df = master_df[master_df['Nama Daerah'] == selected_option].reset_index(drop=True)
+                else:
+                    # Jika user memilih/mengetik nama APARTEMEN (contoh: Villa Tropika)
+                    df = master_df[master_df['Nama Apartemen'] == selected_option].reset_index(drop=True)
                 
                 # JALANKAN ANALISIS STATISTIK SECARA LIVE
                 summary_data = []
@@ -98,7 +116,7 @@ if os.path.exists(MASTER_FILE):
                 summary_df = pd.DataFrame(summary_data)
                 
                 # --- DISPLAY DASHBOARD PREMIUM ---
-                st.markdown(f"### 📊 Hasil Intelijen Pasar: {selected_apartment}")
+                st.markdown(f"### 📊 Hasil Intelijen Pasar: {selected_option}")
                 
                 # BARIS 1: METRICS CARDS LIVE
                 m1, m2, m3, m4 = st.columns(4)
@@ -148,7 +166,7 @@ if os.path.exists(MASTER_FILE):
                         summary_df.to_excel(writer, sheet_name='Ringkasan', index=False)
                     st.download_button(
                         label="🟢 Unduh Dokumen Excel", data=buffer.getvalue(),
-                        file_name=f"SPEEDHOME_Report_{selected_apartment.lower().replace(' ', '_')}.xlsx",
+                        file_name=f"SPEEDHOME_Report_{selected_option.lower().replace(' ', '_')}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True
                     )
@@ -161,15 +179,13 @@ if os.path.exists(MASTER_FILE):
                     df.style.format({"Bulanan (RM)": "RM {:.2f}", "Tahunan (RM)": "RM {:.2f}", "Sqft": "{:.0f} sqft"}),
                     use_container_width=True, hide_index=True
                 )
-            else:
-                st.info("👋 Database siap! Silakan pilih atau ketik nama apartemen pada kolom di atas untuk mulai melakukan analisa otomatis.")
-                
+            
         else:
             st.warning("⚠️ File data induk ditemukan, tetapi data listing properti di dalamnya kosong.")
             
     except Exception as e:
-        st.error(f"❌ Gagal memproses data induk: {str(e)}")
+        st.error(f"❌ Gagal memproses data lokasi: {str(e)}")
 else:
     st.error(f"❌ File database utama `{MASTER_FILE}` tidak ditemukan di repositori GitHub Anda. Silakan upload file data master area Anda terlebih dahulu.")
 
-st.markdown('<div class="footer">SPEEDHOME Price Intelligence App Engine v3.0 • Automated Mode</div>', unsafe_allow_html=True)
+st.markdown('<div class="footer">SPEEDHOME Price Intelligence App Engine v3.2 • Split Location Mode</div>', unsafe_allow_html=True)
