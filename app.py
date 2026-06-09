@@ -1,5 +1,5 @@
 import streamlit as st
-import requests
+import cloudscraper  # Menggunakan cloudscraper untuk bypass Cloudflare
 import pandas as pd
 from datetime import datetime
 import io
@@ -11,7 +11,6 @@ st.title("🏢 SPEEDHOME Property Price Intelligence")
 st.caption("Aplikasi otomatis pengumpul dan analisis data harga sewa properti SPEEDHOME Malaysia")
 
 # 1. KOLOM INPUT & DROPDOWN SIMULASI (Requirement 1)
-# Menyediakan pilihan area populer atau input manual
 area_options = ["Mont Kiara", "Bangsar", "Cyberjaya", "Kuala Lumpur"]
 selected_area = st.selectbox("Pilih atau ketik nama area/apartemen:", options=area_options)
 
@@ -23,13 +22,12 @@ if st.button("🚀 Ambil Data Otomatis", use_container_width=True):
     
     with st.spinner(f"Sedang mengambil data publik SPEEDHOME untuk area: {selected_area}..."):
         try:
-            # Gunakan URL endpoint data Next.js yang kamu temukan
-            build_id = "1780918065278"  # Sesuai temuan Network Tab kamu
+            # URL endpoint data Next.js
+            build_id = "1780918065278"  
             url = f"https://speedhome.com/_next/data/build-{build_id}/en/rent/{search_keyword}.json"
             
             params = {"q": selected_area, "category": "LOCATION", "loc": search_keyword}
             
-            # --- PERBAIKAN HTTP HEADERS (ANTI-403 FORBIDDEN) ---
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 "Accept": "application/json, text/plain, */*",
@@ -44,20 +42,17 @@ if st.button("🚀 Ambil Data Otomatis", use_container_width=True):
                 "X-Requested-With": "XMLHttpRequest"
             }
             
-            response = requests.get(url, params=params, headers=headers, timeout=10)
+            # --- PROSES BYPASS MENGGUNAKAN CLOUDSCRAPER ---
+            scraper = cloudscraper.create_scraper()
+            response = scraper.get(url, params=params, headers=headers, timeout=15)
             
             if response.status_code == 200:
                 json_data = response.json()
-                
-                # Mengambil array data properti (sesuaikan path properti di JSON asli)
                 properties = json_data.get('pageProps', {}).get('properties', [])
                 
                 if properties:
-                    # Konversi ke Pandas DataFrame untuk pengolahan statistik
                     raw_df = pd.DataFrame(properties)
                     
-                    # --- PILOTING DATA UNTUK MEMENUHI REQUIREMENT ---
-                    # Catatan: Di bawah ini adalah simulasi pemetaan kolom jika struktur JSON sedikit berbeda
                     df = pd.DataFrame()
                     df['Judul Listing'] = raw_df['title'] if 'title' in raw_df else "Unit " + raw_df.index.astype(str)
                     df['Area'] = selected_area
@@ -79,7 +74,7 @@ if st.button("🚀 Ambil Data Otomatis", use_container_width=True):
                             "Avg (RM)": round(group['Bulanan (RM)'].mean(), 2),
                             "Median": group['Bulanan (RM)'].median(),
                             "Modus": group['Bulanan (RM)'].mode().iloc[0] if not group['Bulanan (RM)'].mode().empty else "N/A",
-                            "Fair Price": group['Bulanan (RM)'].median(), # Median sebagai estimasi harga tengah wajar
+                            "Fair Price": group['Bulanan (RM)'].median(),
                             "Avg Sqft": round(group['Sqft'].mean(), 2)
                         })
                     
@@ -89,13 +84,11 @@ if st.button("🚀 Ambil Data Otomatis", use_container_width=True):
                     # 3. FITUR DOWNLOAD DATA EXCEL (Requirement 5)
                     st.subheader("📥 Unduh Hasil Analisis")
                     
-                    # Membuat data excel di dalam memory buffer
                     buffer = io.BytesIO()
                     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                         df.to_excel(writer, sheet_name='Daftar Unit', index=False)
                         summary_df.to_excel(writer, sheet_name='Ringkasan Statistik', index=False)
                     
-                    # Penamaan file otomatis dinamis (Format: SPEEDHOME_NamaArea_YYYYMMDD.xlsx)
                     date_str = datetime.now().strftime("%Y%m%d")
                     file_name = f"SPEEDHOME_{selected_area.replace(' ', '_')}_{date_str}.xlsx"
                     
