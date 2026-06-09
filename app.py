@@ -11,16 +11,15 @@ import os
 st.set_page_config(
     page_title="SPEEDHOME Insights",
     page_icon="🏢",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
-# Custom CSS untuk mempercantik UI, Font, dan Card shadow
+# Custom CSS untuk mempercantik UI, Font, dan Tombol
 st.markdown("""
     <style>
-    .main .block-container { padding-top: 2rem; padding-bottom: 2rem; }
+    .main .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
     h1 { font-weight: 800; color: #1E293B; letter-spacing: -0.05em; }
-    h2, h3 { font-weight: 700; color: #334155; }
+    h2, h3 { font-weight: 700; color: #334155; margin-top: 1.5rem; }
     .stButton>button {
         background-color: #2563EB; color: white; border-radius: 8px;
         font-weight: 600; padding: 0.6rem 2rem; border: none;
@@ -32,28 +31,21 @@ st.markdown("""
     </style>
 """, unsafe_style_allowed=True)
 
-# 2. SIDEBAR INPUT & KONTROL
-with st.sidebar:
-    st.markdown("### 🛠️ Control Panel")
-    st.caption("Pilih area properti yang ingin dianalisis berdasarkan basis data lokal.")
-    
-    area_options = ["Kuala Lumpur", "Cyberjaya", "Mont Kiara"]
-    selected_area = st.selectbox("Pilih Area Properti:", options=area_options)
-    
-    st.markdown("---")
-    st.markdown("**Status Aplikasi:**")
-    st.success("⚡ Data Storage Mode Active")
-
-# 3. AREA HEADER UTAMA
+# HEADER UTAMA
 st.title("🏢 SPEEDHOME Property Price Intelligence")
-st.markdown(f"Analisis intelijen harga sewa properti ter-update untuk wilayah **{selected_area}**.")
-st.markdown("---")
+st.caption("Aplikasi otomatis analisis data harga sewa properti SPEEDHOME Malaysia (Local Data Storage Mode)")
+
+# DROPDOWN PILIHAN AREA
+area_options = ["Kuala Lumpur", "Cyberjaya", "Mont Kiara"]
+selected_area = st.selectbox("Pilih atau ketik nama area/apartemen:", options=area_options)
 
 # Menentukan file JSON berdasarkan dropdown
 search_keyword = selected_area.lower().replace(" ", "_")
 json_filename = f"{search_keyword}.json"
 
-# Cek keberadaan file data
+st.markdown("---")
+
+# Cek keberadaan file data lokal
 if os.path.exists(json_filename):
     try:
         with open(json_filename, 'r', encoding='utf-8') as f:
@@ -98,11 +90,11 @@ if os.path.exists(json_filename):
                 })
             summary_df = pd.DataFrame(summary_data)
             
-            # ==============================
-            # LAYOUT TAMPILAN BARU (LEBIH KEREN)
-            # ==============================
+            # ==========================================
+            # DASHBOARD LAYOUT
+            # ==========================================
             
-            # BARIS 1: HIGH-LEVEL METRICS CARDS
+            # BARIS 1: METRICS CARDS
             st.markdown("### 📌 Sekilas Pasar Properti")
             m1, m2, m3, m4 = st.columns(4)
             with m1:
@@ -110,18 +102,17 @@ if os.path.exists(json_filename):
             with m2:
                 st.metric(label="Rata-rata Harga Sewa", value=f"RM {round(df['Bulanan (RM)'].mean(), 2)}")
             with m3:
-                st.metric(label="Median Sewa Terpilih", value=f"RM {df['Bulanan (RM)'].median()}")
+                st.metric(label="Median Sewa", value=f"RM {df['Bulanan (RM)'].median()}")
             with m4:
-                st.metric(label="Rata-rata Ukuran Unit", value=f"{round(df['Sqft'].mean(), 1)} Sqft")
+                st.metric(label="Rata-rata Ukuran", value=f"{round(df['Sqft'].mean(), 1)} Sqft")
             
             st.markdown("---")
             
-            # BARIS 2: GRAFIK VISUALISASI INTERAKTIF (PLOTLY)
+            # BARIS 2: VISUALISASI GRAFIK
             st.markdown("### 📊 Tren & Distribusi Market")
             g1, g2 = st.columns([3, 2])
             
             with g1:
-                # Grafik Perbandingan Statistik Harga Sewa per Tipe Kamar
                 fig_bar = go.Figure()
                 fig_bar.add_trace(go.Bar(x=summary_df["Tipe Unit"], y=summary_df["Avg (RM)"], name="Rata-rata (Avg)", marker_color='#2563EB'))
                 fig_bar.add_trace(go.Bar(x=summary_df["Tipe Unit"], y=summary_df["Median"], name="Median / Fair Price", marker_color='#10B981'))
@@ -137,7 +128,6 @@ if os.path.exists(json_filename):
                 st.plotly_chart(fig_bar, use_container_width=True)
                 
             with g2:
-                # Grafik Pie Penyebaran Market Komposisi Furnishing
                 furnish_counts = df['Furnish'].value_counts().reset_index()
                 furnish_counts.columns = ['Status', 'Jumlah']
                 fig_pie = px.pie(
@@ -150,11 +140,11 @@ if os.path.exists(json_filename):
                 
             st.markdown("---")
             
-            # BARIS 3: TABEL STATISTIK & AKSI DOWNLOAD
-            st.markdown("### 📋 Tabel Ringkasan Harga (Price Summary)")
+            # BARIS 3: TABEL STATISTIK & EXCEL DOWNLOAD
+            st.markdown("### 📊 Tabel Ringkasan Harga (Price Summary)")
             st.dataframe(summary_df, use_container_width=True, hide_index=True)
             
-            # Fitur Unduh Excel diletakkan di container khusus yang rapi
+            # Fitur Unduh Excel dalam expander
             with st.expander("📥 Ambil File Laporan Analisis Market"):
                 buffer = io.BytesIO()
                 with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
@@ -172,7 +162,7 @@ if os.path.exists(json_filename):
                 
             st.markdown("---")
             
-            # BARIS 4: EXPLORE SEMUA DATA LISTING
+            # BARIS 4: DETAIL LISTING
             st.markdown("### 🔍 Detail Semua Unit Properti")
             st.dataframe(
                 df.style.format({"Bulanan (RM)": "RM {:.2f}", "Tahunan (RM)": "RM {:.2f}", "Sqft": "{:.0f} sqft"}),
@@ -181,11 +171,11 @@ if os.path.exists(json_filename):
             )
             
         else:
-            st.warning("Struktur data properti tidak memiliki isi data (content vacant).")
+            st.warning("⚠️ Struktur file data ditemukan, tetapi kontennnya kosong.")
             
     except Exception as e:
-        st.error(f"Terjadi kesalahan parsing struktur internal: {str(e)}")
+        st.error(f"❌ Gagal memproses visualisasi internal: {str(e)}")
 else:
-    st.info(f"💡 File data `{json_filename}` belum terdeteksi di repositori. Silakan pilih opsi area yang filenya sudah di-upload ke GitHub.")
+    st.info(f"💡 File database `{json_filename}` belum terdeteksi di repositori Anda. Harap pastikan nama file JSON yang Anda simpan di GitHub menggunakan format huruf kecil semua dan underscore (contoh: `kuala_lumpur.json`, `cyberjaya.json`, atau `mont_kiara.json`).")
 
 st.markdown('<div class="footer">SPEEDHOME Price Intelligence App Engine v2.0 • Created with ❤️</div>', unsafe_style_allowed=True)
