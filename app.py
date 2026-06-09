@@ -1,56 +1,41 @@
 import streamlit as st
-from curl_cffi import requests as json_requests  # Menggunakan curl_cffi untuk meniru TLS Fingerprint Chrome
 import pandas as pd
 from datetime import datetime
 import io
+import json
+import os
 
 # Setup halaman agar responsif & lebar
 st.set_page_config(page_title="SPEEDHOME Price Intelligence", layout="wide")
 
 st.title("🏢 SPEEDHOME Property Price Intelligence")
-st.caption("Aplikasi otomatis pengumpul dan analisis data harga sewa properti SPEEDHOME Malaysia")
+st.caption("Aplikasi otomatis analisis data harga sewa properti SPEEDHOME Malaysia (Local Data Storage Mode)")
 
-# 1. KOLOM INPUT & DROPDOWN SIMULASI (Requirement 1)
-area_options = ["Mont Kiara", "Bangsar", "Cyberjaya", "Kuala Lumpur"]
+# 1. KOLOM INPUT & DROPDOWN (Requirement 1)
+area_options = ["Mont Kiara", "Cyberjaya"]
 selected_area = st.selectbox("Pilih atau ketik nama area/apartemen:", options=area_options)
 
-# Tombol untuk memicu scraping
-if st.button("🚀 Ambil Data Otomatis", use_container_width=True):
+# Tombol untuk memicu pemrosesan data
+if st.button("🚀 Ambil & Analisis Data", use_container_width=True):
     
-    # Normalisasi string untuk URL (contoh: "Mont Kiara" -> "mont")
+    # Menentukan nama file berdasarkan drop-down (contoh: "Mont Kiara" -> "mont.json")
     search_keyword = selected_area.split()[0].lower()
+    json_filename = f"{search_keyword}.json"
     
-    with st.spinner(f"Sedang mengambil data publik SPEEDHOME untuk area: {selected_area}..."):
-        try:
-            # URL endpoint data Next.js
-            build_id = "1780918065278"  
-            url = f"https://speedhome.com/_next/data/build-{build_id}/en/rent/{search_keyword}.json"
-            
-            params = {"q": selected_area, "category": "LOCATION", "loc": search_keyword}
-            
-            headers = {
-                "Accept": "application/json, text/plain, */*",
-                "Accept-Language": "en-US,en;q=0.9,id;q=0.8",
-                "Referer": f"https://speedhome.com/rent/{search_keyword}",
-                "X-Requested-With": "XMLHttpRequest"
-            }
-            
-            # --- PROSES BYPASS MENGGUNAKAN CURL_CFFI (IMPERSONATE CHROME) ---
-            response = json_requests.get(
-                url, 
-                params=params, 
-                headers=headers, 
-                impersonate="chrome120",  # Meniru fingerprint JA3 & HTTP/2 Google Chrome 120
-                timeout=20
-            )
-            
-            if response.status_code == 200:
-                json_data = response.json()
+    with st.spinner(f"Sedang memproses database properti untuk area: {selected_area}..."):
+        # Cek apakah file JSON hasil download manual kamu ada di GitHub
+        if os.path.exists(json_filename):
+            try:
+                with open(json_filename, 'r', encoding='utf-8') as f:
+                    json_data = json.load(f)
+                
+                # Mengambil array data properti dari struktur bawaan Next.js
                 properties = json_data.get('pageProps', {}).get('properties', [])
                 
                 if properties:
                     raw_df = pd.DataFrame(properties)
                     
+                    # --- PEMETAAN DATA UNTUK MEMENUHI REQUIREMENT ---
                     df = pd.DataFrame()
                     df['Judul Listing'] = raw_df['title'] if 'title' in raw_df else "Unit " + raw_df.index.astype(str)
                     df['Area'] = selected_area
@@ -99,12 +84,11 @@ if st.button("🚀 Ambil Data Otomatis", use_container_width=True):
                     
                     # 4. TABEL DAFTAR UNIT / UNIT LISTINGS (Requirement 3)
                     st.subheader("📋 Daftar Unit Lengkap")
-                    st.write("Tabel di bawah ini dapat di-scroll secara horizontal dan responsif di layar HP.")
                     st.dataframe(df, use_container_width=True, hide_index=True)
                     
                 else:
-                    st.warning("Data properti kosong atau tidak ditemukan untuk area ini.")
-            else:
-                st.error(f"Gagal mengambil data dari SPEEDHOME. (Status Code: {response.status_code})")
-        except Exception as e:
-            st.error(f"Terjadi kendala koneksi: {str(e)}")
+                    st.warning("Struktur data properti di dalam file JSON tidak sesuai.")
+            except Exception as e:
+                st.error(f"Gagal membaca file data: {str(e)}")
+        else:
+            st.error(f"File database '{json_filename}' belum di-upload ke GitHub. Silakan download JSON dari browser dan upload ke GitHub kamu terlebih dahulu.")
