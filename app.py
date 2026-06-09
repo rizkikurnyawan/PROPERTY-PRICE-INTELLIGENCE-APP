@@ -29,7 +29,7 @@ st.markdown("""
     [data-testid="stMetricValue"] { font-size: 1.8rem; font-weight: 700; color: #1E3A8A; }
     .footer { text-align: center; margin-top: 3rem; color: #94A3B8; font-size: 0.85rem; }
     </style>
-""", unsafe_style_allowed=True)
+""", unsafe_allow_html=True)
 
 # HEADER UTAMA
 st.title("🏢 SPEEDHOME Property Price Intelligence")
