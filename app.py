@@ -178,4 +178,4 @@ if os.path.exists(json_filename):
 else:
     st.info(f"💡 File database `{json_filename}` belum terdeteksi di repositori Anda. Harap pastikan nama file JSON yang Anda simpan di GitHub menggunakan format huruf kecil semua dan underscore (contoh: `kuala_lumpur.json`, `cyberjaya.json`, atau `mont_kiara.json`).")
 
-st.markdown('<div class="footer">SPEEDHOME Price Intelligence App Engine v2.0 • Created with ❤️</div>', unsafe_style_allowed=True)
+st.markdown('<div class="footer">SPEEDHOME Price Intelligence App Engine v2.0 • Created with ❤️</div>', unsafe_allow_html=True)
