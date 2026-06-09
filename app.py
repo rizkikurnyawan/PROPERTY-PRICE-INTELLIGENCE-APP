@@ -1,5 +1,5 @@
 import streamlit as st
-import cloudscraper  # Menggunakan cloudscraper untuk bypass Cloudflare
+from curl_cffi import requests as json_requests  # Menggunakan curl_cffi untuk meniru TLS Fingerprint Chrome
 import pandas as pd
 from datetime import datetime
 import io
@@ -29,22 +29,20 @@ if st.button("🚀 Ambil Data Otomatis", use_container_width=True):
             params = {"q": selected_area, "category": "LOCATION", "loc": search_keyword}
             
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 "Accept": "application/json, text/plain, */*",
                 "Accept-Language": "en-US,en;q=0.9,id;q=0.8",
                 "Referer": f"https://speedhome.com/rent/{search_keyword}",
-                "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-                "Sec-Ch-Ua-Mobile": "?0",
-                "Sec-Ch-Ua-Platform": '"Windows"',
-                "Sec-Fetch-Dest": "empty",
-                "Sec-Fetch-Mode": "cors",
-                "Sec-Fetch-Site": "same-origin",
                 "X-Requested-With": "XMLHttpRequest"
             }
             
-            # --- PROSES BYPASS MENGGUNAKAN CLOUDSCRAPER ---
-            scraper = cloudscraper.create_scraper()
-            response = scraper.get(url, params=params, headers=headers, timeout=15)
+            # --- PROSES BYPASS MENGGUNAKAN CURL_CFFI (IMPERSONATE CHROME) ---
+            response = json_requests.get(
+                url, 
+                params=params, 
+                headers=headers, 
+                impersonate="chrome120",  # Meniru fingerprint JA3 & HTTP/2 Google Chrome 120
+                timeout=20
+            )
             
             if response.status_code == 200:
                 json_data = response.json()
