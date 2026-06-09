@@ -1,0 +1,9 @@
+async function simulateSearch() {
+    const area = searchInput.value;
+    const response = await fetch(`/api/scrape?area=${area}`);
+    const data = await response.json();
+    
+    console.log("Data dari Backend:", data);
+    // Di sini kamu masukkan logic untuk mengisi tabel 
+    // berdasarkan data yang diterima dari Railway
+}
